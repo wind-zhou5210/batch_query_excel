@@ -1,0 +1,19 @@
+{
+  "name": "linketrans",
+  "version": "1.0.0",
+  "main": "trans.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "async": "^3.2.6",
+    "axios": "^1.7.7",
+    "axois": "^0.0.1-security",
+    "dayjs": "^1.11.13",
+    "p-limit": "^6.1.0",
+    "xlsx": "^0.18.5"
+  }
+}
