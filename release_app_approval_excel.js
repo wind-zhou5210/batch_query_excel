@@ -284,7 +284,7 @@ async function main() {
     console.log('共查询到发布单', releaselist.length, '条')
     // saveListToFile(releaselist, 'release_list.json');
     //2.  拼接发布详情数据
-    const detailsList = await createDetailList(releaselist.slice(0, 10));
+    const detailsList = await createDetailList(releaselist);
     console.log('详情列表拼接结束=共有', detailsList.length, '条')
     // saveListToFile(detailsList, 'release_detail_list.json');
     //3.  拼接应用信息数据
