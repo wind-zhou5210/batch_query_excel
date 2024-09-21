@@ -5,6 +5,7 @@ const dayjs = require('dayjs');
 const axios = require('axios');
 const fs = require('fs');
 const { saveListToFile, saveToExcel_demand } = require('./util.js');
+const { retry } = require('./retry_demand.js');
 
 //  创建日志写入流
 const logStream = fs.createWriteStream('demand_execution_log.txt', { flags: 'a' }); // 'a' 表示追加写入
@@ -101,14 +102,13 @@ async function createDetailList(releaselist) {
             processedItems++;
             const progress = ((processedItems / totalItems) * 100).toFixed(2); // 计算进度百分比
             // 打印当前请求的id和进度日志
+            console.log(`正在请求发布单详情数据：发布单ID: ${item.externalId} (${processedItems}/${totalItems}, 进度: ${progress}%)`);
             //    没有值的时候不在放入空对象，会做日志文件记录
             if (details) list.push(newData);
-            console.log(`正在请求发布单详情数据：发布单ID: ${item.externalId} (${processedItems}/${totalItems}, 进度: ${progress}%)`);
-            list.push(newData);
         } catch (error) {
             console.error(`请求 发布单id：${item.externalId} 的详情失败，重试后仍然失败。`);
             // 写入日志文件
-            fialAppStream.write(`请求 发布单id：${item.externalId} 的详情失败，重试后仍然失败。\n`); // 写入日志文件
+            fialAppStream.write(`查询发布单详情失败，发布单id：${item?.externalId}\n`); // 写入日志文件
         }
 
     });
@@ -247,10 +247,13 @@ async function main() {
     const demandList = await createDemandList(iterationList);
     saveListToFile(demandList, 'demand_release_demand_list.json');
     console.log('需求列表拼接结束=共有', demandList.length, '条');
-
+    //5. 对错误发布单数据进行重试
+    const retryList = await retry();
+    console.log('需求列表重试结束=共有', retryList.length, '条');
+    const resultList = [...demandList, ...retryList];
     // 输出到 Excel 文件
-    if (demandList.length > 0) {
-        saveToExcel_demand(demandList, 'demand_output.xlsx'); // 保存为 details_output.xlsx
+    if (resultList.length > 0) {
+        saveToExcel_demand(resultList, 'demand_output.xlsx'); // 保存为 details_output.xlsx
     } else {
         console.log('No details found to save.');
     }
