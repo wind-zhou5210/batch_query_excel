@@ -1,3 +1,6 @@
 node_modules
-release*.json
-*.xlsx
+demand*.json
+approval*.json
+*_execution_log.txt
+
+

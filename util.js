@@ -34,7 +34,6 @@ function saveToExcel_demand(data, filename) {
         "迭代ExternalId": item.iterationExtrnalId,
         "需求标题": item.demandnName,
         "需求ID": item.demandId
-
     }));
 
     // 自定义 header
@@ -107,7 +106,6 @@ function saveToExcel_approval(data, filename) {
         "发布前准备": item.release_prepare,
         "发布步骤": item.release_steps,
         "回退预案": item.release_plan
-
     }));
 
     // 自定义 header
@@ -125,8 +123,31 @@ function saveToExcel_approval(data, filename) {
     console.log(`Excel file saved as ${filename}`);
 }
 
+// 读取日志文件并筛选发布单 ID
+function extractReleaseIdsFromLog(filePath) {
+    return new Promise((resolve, reject) => {
+        fs.readFile(filePath, 'utf8', (err, data) => {
+            if (err) {
+                reject(`读取文件出错: ${err}`);
+                return;
+            }
+            // 使用正则表达式匹配 "发布单id: ECR" 后面的ID
+            const idRegex = /发布单id：([A-Z0-9]+)/g;
+            const ids = [];
+            let match;
+
+            // 遍历文件内容匹配到的所有发布单ID
+            while ((match = idRegex.exec(data)) !== null) {
+                ids.push(match[1]); // 提取出ID并推入数组
+            }
+            resolve(ids);
+        });
+    });
+}
+
 module.exports = {
     saveListToFile,
     saveToExcel_demand,
-    saveToExcel_approval
+    saveToExcel_approval,
+    extractReleaseIdsFromLog
 }

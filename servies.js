@@ -7,8 +7,6 @@ async function fetchReleaseList() {
     console.log('==========================开始获取发布单列表==========================');
     var config = {
         method: 'get',
-
-
         url: 'http://linkeapi.thyun.thfund.com.cn/linke/webapi/releases?tenantId=60efa25718126c3eb835f650&page=1&keyword=&participationType=&status=&type=DAILY',
         headers: {
             'Accept': ' application/json',
@@ -19,14 +17,8 @@ async function fetchReleaseList() {
             'Host': 'linkeapi.thyun.thfund.com.cn'
         }
     };
-
-    // try {
     const response = await axios(config);
     return response?.data?.result || []; // 返回列表数据
-    // } catch (error) {
-    //     // console.error('Error fetching list:', error);
-    //     return [];
-    // }
 }
 
 // 根据ID获取发布单详情
@@ -41,13 +33,8 @@ async function fetchReleaseDetailsByExternalId(externalId) {
             'Connection': 'keep-alive'
         }
     };
-    // try {
     const response = await axios(config); // 使用ID请求详情接口
     return response?.data?.result; // 返回详情数据
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${externalId}:`, error);
-    //     return null;
-    // }
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linke/webapi/iteration/release/66e145010358b5272cc5da21
@@ -65,14 +52,8 @@ async function fetchiterationById(id) {
             'Connection': 'keep-alive'
         }
     };
-    // console.log('====当前正在请求的发布单ID====', id);
-    // try {
     const response = await axios(config);
     return response?.data?.result;
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${id}:`, error);
-    //     return null;
-    // }
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linke/webapi/iteration/getWorkItems?iterationExternalId=ECI10026689
@@ -89,14 +70,8 @@ async function fetchDemandByExternalId(ExternalId) {
             'Connection': 'keep-alive'
         }
     };
-    // console.log('====当前正在请求的迭代ExternalId====', ExternalId);
-    // try {
     const response = await axios(config);
     return response?.data?.result;
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${ExternalId}:`, error);
-    //     return null;
-    // }
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linke/webapi/tasks/approval?iterationId=66ebd3ae0358b5272cc6013e
@@ -113,14 +88,9 @@ async function fetchApprovalById(id) {
             'Connection': 'keep-alive'
         }
     };
-    console.log('====当前正在请求的迭代ID====', id);
-    // try {
+    // console.log('====当前正在请求的迭代ID====', id);
     const response = await axios(config);
     return response?.data?.result;
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${id}:`, error);
-    //     return null;
-    // }
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linkflow/webapi/process/log/ab90edfa-765e-11ef-a6a6-9228587ecc0d
@@ -137,14 +107,9 @@ async function fetchRealseApprovalById(id) {
             'Connection': 'keep-alive'
         }
     };
-    console.log('====当前正在请求的审批ID====', id);
-    // try {
+    // console.log('====当前正在请求的审批ID====', id);
     const response = await axios(config);
     return response?.data?.data;
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${id}:`, error);
-    //     return null;
-    // }
 }
 // http://linkeapi.thyun.thfund.com.cn/linkflow/webapi/task/search?processInstanceId=ab90edfa-765e-11ef-a6a6-9228587ecc0d
 // 查询审批下的已完成任务列表
@@ -160,14 +125,9 @@ async function fetchRealseApprovalDoneTaskById(id) {
             'Connection': 'keep-alive'
         }
     };
-    console.log('====当前正在请求的审批ID====', id);
-    // try {
+    // console.log('====当前正在请求的审批ID====', id);
     const response = await axios(config);
     return response?.data?.data;
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${id}:`, error);
-    //     return null;
-    // }
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linkflow/webapi/variables?taskId=f61cd5a5-765f-11ef-a6a6-9228587ecc0d
@@ -184,14 +144,9 @@ async function fetchRealseReviewDetailVarByTaskId(taskId) {
             'Connection': 'keep-alive'
         }
     };
-    console.log('====当前正在请求的发布评审任务taskId====', taskId);
-    // try {
+    // console.log('====当前正在请求的发布评审任务taskId====', taskId);
     const response = await axios(config);
     return response?.data?.data;
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${taskId}:`, error);
-    //     return null;
-    // }
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linke/webapi/release/ECR10026717/apps
@@ -208,14 +163,9 @@ async function fetchRealseAppsByExternalId(ExternalId) {
             'Connection': 'keep-alive'
         }
     };
-    console.log(' 正在请求应用信息：====当前正在请求的发布单ExternalId ====', ExternalId);
-    // try {
+    // console.log(' 正在请求应用信息：====当前正在请求的发布单ExternalId ====', ExternalId);
     const response = await axios(config);
     return response?.data?.result;
-    // } catch (error) {
-    //     // console.error(`Error fetching details for ID ${ExternalId}:`, error);
-    //     return null;
-    // }
 }
 
 module.exports = {
