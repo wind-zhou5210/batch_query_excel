@@ -1,17 +1,27 @@
 const XLSX = require('xlsx');
 const fs = require('fs');
-// 将列表保存到文件的函数
-function saveListToFile(list, filename) {
-    fs.writeFile(filename, JSON.stringify(list, null, 2), (err) => {
+const path = require('path');
+
+// 创建指定目录（如果不存在）
+function ensureDirectoryExists(dir) {
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true }); // 使用 recursive: true 创建多级目录
+    }
+}
+
+// 修改 saveListToFile 函数
+function saveListToFile(list, filename, directory) {
+    const dirPath = path.resolve(__dirname, directory);
+    ensureDirectoryExists(dirPath); // 确保目录存在
+    const filePath = path.resolve(dirPath, filename); // 构建完整路径
+    fs.writeFile(filePath, JSON.stringify(list, null, 2), (err) => {
         if (err) {
             console.error(`Error saving list to file: ${err}`);
         } else {
-            console.log(`List saved to ${filename}`);
+            console.log(`List saved to ${filePath}`);
         }
     });
 }
-
-
 
 // 【需求维度】将数据保存到Excel的函数
 function saveToExcel_demand(data, filename) {

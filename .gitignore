@@ -1,7 +1,5 @@
 node_modules
-demand*.json
-approval*.json
-*_execution_log.txt
+logs
 
 
 
