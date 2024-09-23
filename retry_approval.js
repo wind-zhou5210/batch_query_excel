@@ -10,7 +10,7 @@ const dayjs = require('dayjs');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
-
+const { extractReleaseIdsFromLog } = require('./util.js');
 // 查询详情失败的发布单 写入流
 const fialAppStream = fs.createWriteStream('retry_approval_fail_release_list.txt', { flags: 'a' }); // 'a' 表示追加写入
 // 记录查询的发布单详情为空的数据 写入流

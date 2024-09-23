@@ -225,7 +225,7 @@ async function fetchfailIdsAfterRetry() {
     // 读取空发布单日志文件
     const ids = await extractReleaseIdsFromLog('retry_demand_empty_release_list.txt');
     // 读取失败发布单日志文件
-    const ids2 = await extractReleaseIdsFromLog('retey_demand_fail_release_list.txt');
+    const ids2 = await extractReleaseIdsFromLog('retry_demand_fail_release_list.txt');
     // 合并发布单列表
     const ids3 = [...new Set([...ids, ...ids2])];
     // 写入到文件中
@@ -259,7 +259,7 @@ async function retry() {
         console.log('======重试后仍然有', `${failIdsAfterRetry.length}`, '条发布单失败，需手动重试。======');
         console.log('======失败的发布单列表如下：======');
         console.log(JSON.stringify(failIdsAfterRetry, null, 2));
-        console.log('具体信息请到文件 retry_demand_empty_release_list.txt 和 retey_demand_fail_release_list.txt中查看 ');
+        console.log('具体信息请到文件 retry_demand_empty_release_list.txt 和 retry_demand_fail_release_list.txt中查看 ');
     } else {
         console.log('======重试后全部请求成功，无需重试。======');
     }

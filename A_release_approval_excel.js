@@ -11,16 +11,16 @@ const { saveListToFile, saveToExcel_approval } = require('./util.js');
 const { retry } = require('./retry_approval.js');
 // 创建 logs/approval 目录（如果不存在）
 const approvalDir = path.resolve(__dirname, 'logs', 'approval');                  
-if (!fs.existsSync(demandDir)) {
-    fs.mkdirSync(demandDir, { recursive: true }); // 创建多级目录
+if (!fs.existsSync(approvalDir)) {
+    fs.mkdirSync(approvalDir, { recursive: true }); // 创建多级目录
 }
 
 // 创建日志写入流
 const logStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_execution_log.txt'), { flags: 'a' });
 // 查询详情失败的发布单 写入流
-const fialAppStream = fs.crSeateWriteStream(path.resolve(approvalDir, 'approval_fail_release_list.txt'), { flags: 'a' });
+const fialAppStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_fail_release_list.txt'), { flags: 'a' });
 // 记录查询的发布单详情为空的数据 写入流
-const emptyAppStream = fs.createWriteStream(path.resolve(azsSSSS, 'approval_empty_release_list.txt'), { flags: 'a' });
+const emptyAppStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_release_list.txt'), { flags: 'a' });
 
 // ANSI 转义码：黄色
 const yellow = '\x1b[33m';
