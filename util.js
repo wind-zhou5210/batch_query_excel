@@ -35,6 +35,7 @@ function saveToExcel_demand(data, filename) {
         "发布名称": item.releaseItemName,
         "发布接口人": item.release_jiekouren_name,
         "发布接口人账号": item.releaselist_jiekouren_account,
+        "最早合并时间": item.mergeStartTime,
         "合并截止时间": item.mergeEndTime,
         "提交预发截止时间": item.preReleaseEndTime,
         "提交发布截止时间": item.releaseEndTime,
@@ -47,7 +48,7 @@ function saveToExcel_demand(data, filename) {
     }));
 
     // 自定义 header
-    const header = ["id", "发布单名称", "发布单id", "环境", "发布名称", "发布接口人", "发布接口人账号", "合并截止时间", "提交预发截止时间", "提交发布截止时间", "预计发布日期", "迭代名称", "迭代ID", "迭代ExternalId", "需求标题", "需求ID"];
+    const header = ["id", "发布单名称", "发布单id", "环境", "发布名称", "发布接口人", "发布接口人账号",  "最早合并时间","合并截止时间", "提交预发截止时间", "提交发布截止时间", "预计发布日期", "迭代名称", "迭代ID", "迭代ExternalId", "需求标题", "需求ID"];
     const worksheet = XLSX.utils.json_to_sheet(customData, { header }); // 将 JSON 转换为 Excel sheet
     const workbook = XLSX.utils.book_new(); // 创建一个新的工作簿
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Details'); // 将sheet附加到工作簿中
@@ -97,6 +98,7 @@ function saveToExcel_approval(data, filename) {
         "发布名称": item.releaseItemName,
         "发布接口人": item.release_jiekouren_name,
         "发布接口人账号": item.releaselist_jiekouren_account,
+        "最早合并时间": item.mergeStartTime,
         "合并截止时间": item.mergeEndTime,
         "提交预发截止时间": item.preReleaseEndTime,
         "提交发布截止时间": item.releaseEndTime,
@@ -120,7 +122,7 @@ function saveToExcel_approval(data, filename) {
 
     // 自定义 header
     const header = ["id", "发布单名称", "发布单id", "环境", "发布名称",
-        "发布接口人", "发布接口人账号", "合并截止时间", "提交预发截止时间",
+        "发布接口人", "发布接口人账号", "最早合并时间", "合并截止时间", "提交预发截止时间",
         "提交发布截止时间", "预计发布日期", "迭代名称", "迭代ID", "代码库",
         "用于提交发布的应用", "状态/阶段", "是否发布", "发布审批信息",
         "迭代iD", "迭代名", "应用名", "功能描述", "发布影响", "发布前准备",

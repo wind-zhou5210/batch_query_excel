@@ -81,8 +81,8 @@ async function createDetailList(releaselist) {
                 release_jiekouren_name: details?.creator?.displayName,
                 // 发布接口人 （账号）
                 releaselist_jiekouren_account: details?.creator?.account,
-                // 最早合并时间 TODO...
-                // earliestMergeTime: item?.earliestMergeTime,
+                // 最早合并时间 
+                mergeStartTime: details?.mergeStartTime ? dayjs(details?.mergeStartTime).format('YYYY-MM-DD HH:mm:ss') : undefined,
                 // 合并截止时间
                 mergeEndTime: details?.deadlines?.FAST_DEV ? dayjs(details?.deadlines?.FAST_DEV).format('YYYY-MM-DD HH:mm:ss') : undefined,
                 // 提交预发截止时间
