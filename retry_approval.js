@@ -75,6 +75,8 @@ async function createDetailList(releaselist) {
                 releaseId: item?.externalId,
                 // 环境 (json)
                 env: JSON.stringify(details?.tenantReleaseInfos),
+                // 发布单链接
+                releaseUrl: details?.ticket,
                 // 发布名称
                 releaseItemName: details?.name,
                 // 发布接口人 （中文名）
