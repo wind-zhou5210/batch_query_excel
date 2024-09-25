@@ -11,6 +11,9 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
 const { extractReleaseIdsFromLog, extractReleaseApps} = require('./util.js');
+const util = require('util');
+
+const truncate = util.promisify(fs.truncate);
 // 查询详情失败的发布单 写入流
 const fialAppStream = fs.createWriteStream('retry_approval_fail_release_list.txt', { flags: 'a' }); // 'a' 表示追加写入
 // 记录查询的发布单详情为空的数据 写入流
@@ -20,6 +23,12 @@ const emptyAppStream = fs.createWriteStream('retry_approval_empty_release_list.t
 const emptyAppIterationStream = fs.createWriteStream('retry_approval_empty_iteration_list.txt', { flags: 'a' });
 // 记录查询的发布单迭代为空的数据 写入流
 const emptyAppApprovalStream =  fs.createWriteStream( 'retry_approval_empty_approval_list.txt', { flags: 'a' });
+// 记录查询的发布单-应用列表为空的数据 写入流
+const emptyAppAppsStream = fs.createWriteStream('retry_approval_empty_apps_list.txt', { flags: 'a' });
+// 记录查询的发布单发布审批信息为空的数据 写入流
+const emptyAppReleaseApprovalStream = fs.createWriteStream('retry_approval_empty_release_approval_list.txt', { flags: 'a' });
+
+let retryCount = 0;
 
 // 请求重试函数 
 async function fetchWithRetry(fn, id, retries = 5) {
@@ -43,12 +52,16 @@ async function fetchWithRetry(fn, id, retries = 5) {
 
 async function fetchRetryIds() {
     console.log('==========================开始读取失败日志中的发布单列表==========================');
-    const emptyPath = path.resolve(__dirname, 'logs/approval', 'approval_empty_release_list.txt');
-    const failPath = path.resolve(__dirname, 'logs/approval', 'approval_fail_release_list.txt');
+    const emptyPath = retryCount > 0 ? 'retry_approval_empty_release_list.txt' : path.resolve(__dirname, 'logs/approval', 'approval_empty_release_list.txt');
+    const failPath = retryCount > 0 ? 'retry_approval_fail_release_list.txt' : path.resolve(__dirname, 'logs/approval', 'approval_fail_release_list.txt');
     // approval_empty_iteration_list.txt
-    const emptyIterationPath = path.resolve(__dirname, 'logs/approval', 'approval_empty_iteration_list.txt');
+    const emptyIterationPath = retryCount > 0 ? 'retry_approval_empty_iteration_list.txt' : path.resolve(__dirname, 'logs/approval', 'approval_empty_iteration_list.txt');
     // approval_empty_approval_list.txt
-    const emptyApprovalPath = path.resolve(__dirname, 'logs/approval', 'approval_empty_approval_list.txt');
+    const emptyApprovalPath = retryCount > 0 ? 'retry_approval_empty_approval_list.txt' : path.resolve(__dirname, 'logs/approval', 'approval_empty_approval_list.txt');
+    // retry_approval_empty_apps_list.txt
+    const emptyAppsPath = retryCount > 0 ? 'retry_approval_empty_apps_list.txt' : path.resolve(__dirname, 'logs/approval', 'approval_empty_apps_list.txt');
+    // approval_empty_release_approval_list.txt
+    const emptyReleaseApprovalPath = retryCount > 0 ? 'retry_approval_empty_release_approval_list.txt' : path.resolve(__dirname, 'logs/approval', 'approval_empty_release_approval_list.txt');
     // 读取空发布单日志文件
     const id1s = await extractReleaseIdsFromLog(emptyPath);
     // 读取失败发布单日志文件
@@ -56,10 +69,22 @@ async function fetchRetryIds() {
     // 读取查询迭代列表失败的应用
     const id3s = await extractReleaseIdsFromLog(emptyIterationPath);
     // 查询迭代下审批列表为空的应用
-    
     const id4s = await extractReleaseIdsFromLog(emptyApprovalPath);
+    // 查询迭代下审批列表为空的应用
+    const id5s = await extractReleaseIdsFromLog(emptyAppsPath);
+    // 查询迭代下审批列表为空的应用
+    const id6s = await extractReleaseIdsFromLog(emptyReleaseApprovalPath);
     // 合并发布单列表
-    const ids = [...new Set([...id1s, ...id2s, ...id3s, ...id4s])];
+    const ids = [...new Set([...id1s, ...id2s, ...id3s, ...id4s, ...id5s, ...id6s])];
+    // 即将重试时，清空 日志文件
+    await Promise.all([
+        truncate('retry_approval_empty_release_list.txt', 0),
+        truncate('retry_approval_fail_release_list.txt', 0),
+        truncate('retry_approval_empty_iteration_list.txt', 0),
+        truncate('retry_approval_empty_approval_list.txt', 0),
+        truncate('retry_approval_empty_apps_list.txt', 0),
+        truncate('retry_approval_empty_release_approval_list.txt', 0)
+    ]);
     // 写入到文件中
     const releaseList = ids?.map(id => ({ externalId: id }));
     console.log('releaseList:', JSON.stringify(releaseList));
@@ -273,7 +298,13 @@ async function createReleaseApprovalList(approvalList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(approvalList, 30, async (item) => {
         try {
-            const releaseApprovalInfo = await fetchWithRetry(fetchRealseApprovalById, item.approvalId) || [];
+            const releaseApprovalInfo = await fetchWithRetry(fetchRealseApprovalById, item.approvalId);
+            if(!releaseApprovalInfo){
+                // releaseApprovalInfo 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单-发布审批信息失败', ",发布单id",item.releaseId,'迭代id:', item?.iterationId,"审批单id:",item?.approvalId);
+                emptyAppReleaseApprovalStream.write(`查询发布单-发布审批信息失败，发布单id：${item?.releaseId}\n`)
+            }
             const newData = {
                 ...item,
                 releaseApprovalInfo: JSON.stringify(releaseApprovalInfo)
@@ -283,7 +314,7 @@ async function createReleaseApprovalList(approvalList) {
             const progress = ((processedItems / totalItems) * 100).toFixed(2); // 计算进度百分比
             // 打印当前请求的id和进度日志
             console.log(`【重试】正在请求审批单下的发布审批信息：审批单ID: ${item.approvalId} (${processedItems}/${totalItems}, 进度: ${progress}%)`);
-            list.push(newData)
+            if(releaseApprovalInfo) list.push(newData);
         } catch (error) {
             console.error(`【重试】请求 审批单ID：${item.approvalId} 下的发布审批信息失败，重试后仍然失败。`);
         }
@@ -316,7 +347,6 @@ async function createReviewList(approvalList) {
         } catch (error) {
             console.error(`【重试】请求 审批单ID：${item.approvalId} 下的已完成任务列表失败，重试后仍然失败。`);
         }
-
     });
     return list;
 }
@@ -415,7 +445,13 @@ async function createDetailListWithAppInfo(detailsList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(detailsList, 30, async (item) => {
         try {
-            const appListsInfo = await fetchWithRetry(fetchRealseAppsByExternalId, item.releaseId) || {};
+            const appListsInfo = await fetchWithRetry(fetchRealseAppsByExternalId, item.releaseId);
+            if(!appListsInfo) {
+                // appListsInfo 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单-应用列表失败', ",发布单id",item.releaseId);
+                emptyAppAppsStream.write(`查询发布单-应用列表失败，发布单id：${item?.releaseId}\n`);
+            }
             const appLists = extractReleaseApps(appListsInfo?.releaseRepos);
             const newData = {
                 ...item,
@@ -426,7 +462,7 @@ async function createDetailListWithAppInfo(detailsList) {
             const progress = ((processedItems / totalItems) * 100).toFixed(2); // 计算进度百分比
             // 打印当前请求的id和进度日志
             console.log(`【重试】正在请求发布单下的应用信息：发布单ID: ${item.releaseId} (${processedItems}/${totalItems}, 进度: ${progress}%)`);
-            list.push(newData)
+           if(appListsInfo) list.push(newData);
         } catch (error) {
             console.error(`【重试】请求 发布单id：${item.releaseId} 下的应用信息失败，重试后仍然失败。`);
         }
@@ -437,23 +473,28 @@ async function createDetailListWithAppInfo(detailsList) {
 
 // 查询重试后失败的发布单列表
 async function fetchfailIdsAfterRetry() {
-    console.log('==========================开始读取失败日志中的发布单列表==========================');
+    console.log('==========================再次检查重试后的失败的发布单列表==========================');
     // 读取空发布单日志文件
-    const ids = await extractReleaseIdsFromLog('retry_approval_empty_release_list.txt');
+    const id1s = await extractReleaseIdsFromLog('retry_approval_empty_release_list.txt');
     // 读取失败发布单日志文件
-    const ids2 = await extractReleaseIdsFromLog('retry_approval_fail_release_list.txt');
+    const id2s = await extractReleaseIdsFromLog('retry_approval_fail_release_list.txt');
+    const id3s = await extractReleaseIdsFromLog('retry_approval_empty_iteration_list.txt');
+    const id4s = await extractReleaseIdsFromLog('retry_approval_empty_approval_list.txt');
+    const id5s = await extractReleaseIdsFromLog('retry_approval_empty_apps_list.txt');
+    const id6s = await extractReleaseIdsFromLog('retry_approval_empty_release_approval_list.txt');
+    // 记录重试次数
+    retryCount++;
     // 合并发布单列表
-    const ids3 = [...new Set([...ids, ...ids2])];
+    const ids = [...new Set([...id1s, ...id2s, ...id3s, ...id4s, ...id5s, ...id6s])];
     // 写入到文件中
-    const releaseList = ids3?.map(id => ({ externalId: id }));
+    const releaseList = ids?.map(id => ({ externalId: id }));
     console.log('releaseList:', JSON.stringify(releaseList));
     return releaseList;
 }
 
+
 // 主逻辑
-async function retry() {
-    // 记录开始时间
-    const startTime = Date.now();
+async function retry(preResultList=[], startTime = Date.now() ) {
     console.log('重试脚本开始运行...');
     //1.  获取发布单列表
     const releaselist = await fetchRetryIds();
@@ -488,19 +529,24 @@ async function retry() {
     // saveListToFile(reviewDetailList, 'approval_release_review_detail_list.json', 'logs/approval/retry');
     //9. 再次检查重试后是否还有失败的发布单
     const failIdsAfterRetry = await fetchfailIdsAfterRetry();
-    if (failIdsAfterRetry?.length) {
+    // 有失败发布单 && 重试次数 < 3
+    if (failIdsAfterRetry?.length && retryCount < 3) {
+       return await retry([...preResultList, ...reviewDetailList], startTime);
+      // 重试后没有失败
+    } else if (!failIdsAfterRetry?.length) {
+        console.log('======重试后全部请求成功，无需重试。======');
+        // 重试后仍有失败
+    } else {
         console.log('======重试后仍然有', `${failIdsAfterRetry.length}`, '条发布单失败，需手动重试。======');
         console.log('======失败的发布单列表如下：======');
         console.log(JSON.stringify(failIdsAfterRetry, null, 2));
-        console.log('具体信息请到文件 retry_approval_empty_release_list.txt 和 retry_approval_fail_release_list.txt中查看 ');
-    } else {
-        console.log('======重试后全部请求成功，无需重试。======');
+        console.log('具体信息请到文件 retry_approval_empty_release_list.txt 和 retry_approval_fail_release_list.txt, retry_approval_empty_iteration_list.txt, retry_approval_empty_approval_list.txt, retry_approval_empty_apps_list.txt, retry_approval_empty_release_approval_list.txt中查看 ');
     }
     // 记录结束时间并计算总耗时
     const endTime = Date.now();
     const totalTime = (endTime - startTime) / 1000; // 转换为秒
     console.log(`重试脚本运行结束，总耗时: ${totalTime} 秒`);  
-    return reviewDetailList;
+    return [...preResultList, ...reviewDetailList];
 }
 
 module.exports = {

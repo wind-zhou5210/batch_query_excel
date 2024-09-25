@@ -22,6 +22,8 @@ const fialAppStream = fs.createWriteStream(path.resolve(demandDir, 'demand_fail_
 const emptyAppStream = fs.createWriteStream(path.resolve(demandDir, 'demand_empty_release_list.txt'), { flags: 'a' });
 // 记录查询的发布单迭代为空的数据 写入流
 const emptyAppIterationStream = fs.createWriteStream(path.resolve(demandDir, 'demand_empty_iteration_list.txt'), { flags: 'a' });
+// 记录查询的发布单迭代需求列表为空的数据 写入流
+const emptyAppTaskStream = fs.createWriteStream(path.resolve(demandDir, 'demand_empty_task_list.txt'), { flags: 'a' });
 
 // ANSI 转义码：黄色
 const yellow = '\x1b[33m';
@@ -198,9 +200,15 @@ async function createDemandList(iterationList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(iterationList, 30, async (item) => {
         try {
-            const demandList = await fetchWithRetry(fetchDemandByExternalId, item.iterationExtrnalId) || [];
+            const demandList = await fetchWithRetry(fetchDemandByExternalId, item.iterationExtrnalId) ;
+            if(!demandList){
+                // demandList 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单-迭代-需求列表失败', ",发布单id",item.releaseId,'迭代id:', item?.iterationId);
+                emptyAppTaskStream.write(`查询发布单-迭代-需求列表失败，发布单id：${item?.releaseId}\n`)
+            }
             // 没有迭代数据时， 迭代信息填充为空
-            if (!demandList?.length) {
+            if ( Array.isArray(demandList) && !demandList?.length) {
                 const tempObj = {
                     ...item,
                     // 拼接需求信息

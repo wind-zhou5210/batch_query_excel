@@ -12,6 +12,11 @@ const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
 const { extractReleaseIdsFromLog } = require('./util.js');
+const util = require('util');
+
+const truncate = util.promisify(fs.truncate);
+
+let retryCount = 0;
 
 // 查询详情失败的发布单 写入流
 const fialAppStream = fs.createWriteStream('retry_demand_fail_release_list.txt', { flags: 'a' }); // 'a' 表示追加写入
@@ -19,6 +24,8 @@ const fialAppStream = fs.createWriteStream('retry_demand_fail_release_list.txt',
 const emptyAppStream = fs.createWriteStream('retry_demand_empty_release_list.txt', { flags: 'a' }); // 'a' 表示追加写入
 // 记录查询的发布单迭代为空的数据 写入流
 const emptyAppIterationStream = fs.createWriteStream('retry_demand_empty_iteration_list.txt', { flags: 'a' });
+// 记录查询的发布单迭代需求列表为空的数据 写入流
+const emptyAppTaskStream = fs.createWriteStream( 'retry_demand_empty_task_list.txt', { flags: 'a' });
 
 // 请求重试函数 
 async function fetchWithRetry(fn, id, retries = 5) {
@@ -42,18 +49,28 @@ async function fetchWithRetry(fn, id, retries = 5) {
 
 async function fetchRetryIds() {
     console.log('==========================开始读取失败日志中的发布单列表==========================');
-    const emptyPath = path.resolve(__dirname, 'logs/demand', 'demand_empty_release_list.txt');
-    const failPath = path.resolve(__dirname, 'logs/demand', 'demand_fail_release_list.txt');
-    const emptyIterationPath = path.resolve(__dirname, 'logs/demand', 'demand_empty_iteration_list.txt');
+    const emptyPath = retryCount > 0 ? 'retry_demand_empty_release_list.txt' : path.resolve(__dirname, 'logs/demand', 'demand_empty_release_list.txt');
+    const failPath = retryCount > 0 ? 'retry_demand_fail_release_list.txt' : path.resolve(__dirname, 'logs/demand', 'demand_fail_release_list.txt');
+    const emptyIterationPath = retryCount > 0 ? 'retry_demand_empty_iteration_list.txt' : path.resolve(__dirname, 'logs/demand', 'demand_empty_iteration_list.txt');
+    const emptyTaskPath = retryCount > 0 ? 'retry_demand_empty_task_list.txt' : path.resolve(__dirname, 'logs/demand', 'demand_empty_task_list.txt');
 
     // 读取空发布单日志文件
     const id1s = await extractReleaseIdsFromLog(emptyPath);
     // 读取失败发布单日志文件
     const id2s = await extractReleaseIdsFromLog(failPath);
-       // 读取查询迭代列表失败的应用
+    // 读取查询迭代列表失败的应用
     const id3s = await extractReleaseIdsFromLog(emptyIterationPath);
+    // 查询迭代下需求列表为空的应用
+    const id4s = await extractReleaseIdsFromLog(emptyTaskPath);
     // 合并发布单列表
-    const ids = [...new Set([...id1s, ...id2s, ...id3s])];
+    const ids = [...new Set([...id1s, ...id2s, ...id3s, ...id4s])];
+    // 即将重试时，清空 日志文件
+    await Promise.all([
+        truncate('retry_demand_empty_release_list.txt', 0),
+        truncate('retry_demand_fail_release_list.txt', 0),
+        truncate('retry_demand_empty_iteration_list.txt', 0),
+        truncate('retry_demand_empty_task_list.txt', 0),
+    ]);
     // 写入到文件中
     const releaseList = ids?.map(id => ({ externalId: id }));
     console.log('releaseList:', JSON.stringify(releaseList));
@@ -190,9 +207,15 @@ async function createDemandList(iterationList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(iterationList, 30, async (item) => {
         try {
-            const demandList = await fetchWithRetry(fetchDemandByExternalId, item.iterationExtrnalId) || [];
+            const demandList = await fetchWithRetry(fetchDemandByExternalId, item.iterationExtrnalId);
+            if(!demandList){
+                // demandList 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单-迭代-需求列表失败', ",发布单id",item.releaseId,'迭代id:', item?.iterationId);
+                emptyAppTaskStream.write(`查询发布单-迭代-需求列表失败，发布单id：${item?.releaseId}\n`)
+            }
             // 没有迭代数据时， 迭代信息填充为空
-            if (!demandList?.length) {
+            if ( Array.isArray(demandList) && !demandList?.length) {
                 const tempObj = {
                     ...item,
                     // 拼接需求信息
@@ -216,7 +239,6 @@ async function createDemandList(iterationList) {
                         demandnName: demand?.subject,
                         // 需求id
                         demandId: demand?.externalId,
-
                     }
                     list.push(tempObj);
                 });
@@ -237,21 +259,22 @@ async function createDemandList(iterationList) {
 async function fetchfailIdsAfterRetry() {
     console.log('==========================开始读取失败日志中的发布单列表==========================');
     // 读取空发布单日志文件
-    const ids = await extractReleaseIdsFromLog('retry_demand_empty_release_list.txt');
+    const id1s = await extractReleaseIdsFromLog('retry_demand_empty_release_list.txt');
     // 读取失败发布单日志文件
-    const ids2 = await extractReleaseIdsFromLog('retry_demand_fail_release_list.txt');
+    const id2s = await extractReleaseIdsFromLog('retry_demand_fail_release_list.txt');
+    const id3s = await extractReleaseIdsFromLog('retry_demand_empty_iteration_list.txt');
+    const id4s = await extractReleaseIdsFromLog('retry_demand_empty_task_list.txt');
+    retryCount++;
     // 合并发布单列表
-    const ids3 = [...new Set([...ids, ...ids2])];
+    const ids = [...new Set([...id1s, ...id2s, ...id3s, ...id4s])];
     // 写入到文件中
-    const releaseList = ids3?.map(id => ({ externalId: id }));
+    const releaseList = ids?.map(id => ({ externalId: id }));
     console.log('releaseList:', releaseList);
     return releaseList;
 }
 
 // 主逻辑
-async function retry() {
-    // 记录开始时间
-    const startTime = Date.now();
+async function retry(preResultList=[], startTime = Date.now()) {
     console.log('手动重试脚本开始运行...');
     //1. 获取发布单列表
     const releaselist = await fetchRetryIds();
@@ -269,20 +292,27 @@ async function retry() {
     console.log('需求列表拼接结束=共有', demandList.length, '条');
     // 5. 再次检查重试后是否还有失败的发布单
     const failIdsAfterRetry = await fetchfailIdsAfterRetry();
-    if (failIdsAfterRetry?.length) {
+    // 有失败发布单 && 重试次数 < 3
+    if (failIdsAfterRetry?.length && retryCount < 3) {
+       return await retry([...preResultList, ...demandList], startTime);
+      // 重试后没有失败
+    } else if (!failIdsAfterRetry?.length) {
+        console.log('======重试后全部请求成功，无需重试。======');
+        // 重试后仍有失败
+    } else {
         console.log('======重试后仍然有', `${failIdsAfterRetry.length}`, '条发布单失败，需手动重试。======');
         console.log('======失败的发布单列表如下：======');
         console.log(JSON.stringify(failIdsAfterRetry, null, 2));
-        console.log('具体信息请到文件 retry_demand_empty_release_list.txt 和 retry_demand_fail_release_list.txt中查看 ');
-    } else {
-        console.log('======重试后全部请求成功，无需重试。======');
+        console.log('具体信息请到文件 retry_demand_empty_release_list.txt 和 retry_demand_fail_release_list.txt,retry_demand_empty_iteration_list.txt 和 retry_demand_empty_task_list.txt中查看 ');
     }
+
+
     // 记录结束时间并计算总耗时
     const endTime = Date.now();
     const totalTime = (endTime - startTime) / 1000; // 转换为秒
     console.log(`重试脚本运行结束，总耗时: ${totalTime} 秒`);
 
-    return demandList;
+    return [...preResultList, ...demandList];
 }
 
 module.exports = {

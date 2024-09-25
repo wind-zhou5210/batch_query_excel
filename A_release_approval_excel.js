@@ -25,7 +25,10 @@ const emptyAppStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_
 const emptyAppIterationStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_iteration_list.txt'), { flags: 'a' });
 // 记录查询的发布单迭代审批列表为空的数据 写入流
 const emptyAppApprovalStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_approval_list.txt'), { flags: 'a' });
-
+// 记录查询的发布单应用列表为空的数据 写入流
+const emptyAppAppsStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_apps_list.txt'), { flags: 'a' });
+// 记录查询的发布单发布审批信息为空的数据 写入流
+const emptyAppReleaseApprovalStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_release_approval_list.txt'), { flags: 'a' });
 
 // ANSI 转义码：黄色
 const yellow = '\x1b[33m';
@@ -278,7 +281,13 @@ async function createReleaseApprovalList(approvalList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(approvalList, 30, async (item) => {
         try {
-            const releaseApprovalInfo = await fetchWithRetry(fetchRealseApprovalById, item.approvalId) || [];
+            const releaseApprovalInfo = await fetchWithRetry(fetchRealseApprovalById, item.approvalId);
+            if(!releaseApprovalInfo){
+                // releaseApprovalInfo 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单-发布审批信息失败', ",发布单id",item.releaseId,'迭代id:', item?.iterationId,"审批单id:",item?.approvalId);
+                emptyAppReleaseApprovalStream.write(`查询发布单-发布审批信息失败，发布单id：${item?.releaseId}\n`)
+            }
             const newData = {
                 ...item,
                 releaseApprovalInfo: JSON.stringify(releaseApprovalInfo)
@@ -288,7 +297,7 @@ async function createReleaseApprovalList(approvalList) {
             const progress = ((processedItems / totalItems) * 100).toFixed(2); // 计算进度百分比
             // 打印当前请求的id和进度日志
             console.log(`正在请求审批单下的发布审批信息：审批单ID: ${item.approvalId} (${processedItems}/${totalItems}, 进度: ${progress}%)`);
-            list.push(newData)
+            if(releaseApprovalInfo) list.push(newData);
         } catch (error) {
             console.error(`请求 审批单ID：${item.approvalId} 下的发布审批信息失败，重试后仍然失败。`);
         }
@@ -321,7 +330,6 @@ async function createReviewList(approvalList) {
         } catch (error) {
             console.error(`请求 审批单ID：${item.approvalId} 下的已完成任务列表失败，重试后仍然失败。`);
         }
-
     });
     return list;
 }
@@ -420,7 +428,13 @@ async function createDetailListWithAppInfo(detailsList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(detailsList, 30, async (item) => {
         try {
-            const appListsInfo = await fetchWithRetry(fetchRealseAppsByExternalId, item.releaseId) || {};
+            const appListsInfo = await fetchWithRetry(fetchRealseAppsByExternalId, item.releaseId);
+            if(!appListsInfo)  {
+                // appListsInfo 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单-应用列表失败', ",发布单id",item.releaseId);
+                emptyAppAppsStream.write(`查询发布单-应用列表失败，发布单id：${item?.releaseId}\n`);
+            }
             const appLists = extractReleaseApps(appListsInfo?.releaseRepos);
             const newData = {
                 ...item,
@@ -431,7 +445,7 @@ async function createDetailListWithAppInfo(detailsList) {
             const progress = ((processedItems / totalItems) * 100).toFixed(2); // 计算进度百分比
             // 打印当前请求的id和进度日志
             console.log(`正在请求发布单下的应用信息：发布单ID: ${item.releaseId} (${processedItems}/${totalItems}, 进度: ${progress}%)`);
-            list.push(newData)
+           if(appListsInfo) list.push(newData)
         } catch (error) {
             console.error(`请求 发布单id：${item.releaseId} 下的应用信息失败，重试后仍然失败。`);
         }
@@ -455,7 +469,7 @@ async function main() {
     console.log('详情列表拼接结束=共有', detailsList.length, '条')
     saveListToFile(detailsList, 'approval_release_detail_list.json', 'logs/approval');
     //3.  拼接应用信息数据
-    const detailListWithAppInfo = await createDetailListWithAppInfo(detailsList);
+    const detailListWithAppInfo = await createDetailListWithAppInfo(detailsList);  
     console.log('======================应用信息拼接结束=共有', detailListWithAppInfo.length, '条', '======================')
     //4. 拼接迭代数据 【 发布单-迭代 为一对多】
     const iterationList = await createIterationList(detailListWithAppInfo);
