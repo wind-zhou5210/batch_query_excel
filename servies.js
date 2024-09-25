@@ -1,7 +1,7 @@
 
 const axios = require('axios');
 
-const cookie = 'undefined__tenant=ThfundPremise; undefined__project=ThfundPremise; isEnableLocale=disabled; LOCALE=zh_CN; acLoginFrom=antcloud_login; nav_original_path=; 0000013950__tenant=ThfundPremise; 0000013950__project=ThfundPremise; tenantName=ThfundPremise; JSESSIONID=A9960EFF9840FE2C0ECC6AB9E9A39DB2; tfstk=fI9-G-YUmq0obbcHF3GcKoVWLlnmoLKPHU-_KwbuOELvqhIuZ0-CAkL9X6vHA48ppZLFtaThEyHpkT1eZwblJ9KeWm0iIAxy49WSSVDGffrmSOr7dwahc-s3-HIbbAxy4oZ8RcAjIWdsl93dRe15hoshlWaBRwwjDMs3PWwWRniAYZa7d9_CcsslfwTPy2QbVw2pO1UHZmmmNJepHigF83ETpivR2_Q6VLeQdlsRwNt5uVf75W5XY6pUYJBHVC8FfUaSJwJvcLO65qVlPCIpjBLtCJS2NUpf9KmEInXJMKBkF2PwmnQ56tAmg4fheUdN7_GqueKAre9RGz3c-CxDFsLso-LF9B9lhLgjBgPpIdCphPjVH7ixDWPFNimMTVMDWIYhoiQi2vFUTsoVDNmxDWPFgmSAS038TW52U; utoken_CLOUD=ACAg4vzVDjZUhn1S%3BVcwCyRrckxD5IhakuhB3rsQ9qwlLkz89KRdIwC3ygLNu0xwgy8Aclc-Yp3puOgon%231726751103264; authorization=hmac%200000013950-1%3Ac1dGWnlWQXFYdFZKeExXM3Y0ckdlRVE0bk9qajVmTzc%3D~0'
+const cookie = 'undefined__tenant=ThfundPremise; undefined__project=ThfundPremise; isEnableLocale=disabled; LOCALE=zh_CN; acLoginFrom=antcloud_login; nav_original_path=; 0000013950__tenant=ThfundPremise; 0000013950__project=ThfundPremise; tenantName=ThfundPremise; JSESSIONID=A9960EFF9840FE2C0ECC6AB9E9A39DB2; tfstk=fI9-G-YUmq0obbcHF3GcKoVWLlnmoLKPHU-_KwbuOELvqhIuZ0-CAkL9X6vHA48ppZLFtaThEyHpkT1eZwblJ9KeWm0iIAxy49WSSVDGffrmSOr7dwahc-s3-HIbbAxy4oZ8RcAjIWdsl93dRe15hoshlWaBRwwjDMs3PWwWRniAYZa7d9_CcsslfwTPy2QbVw2pO1UHZmmmNJepHigF83ETpivR2_Q6VLeQdlsRwNt5uVf75W5XY6pUYJBHVC8FfUaSJwJvcLO65qVlPCIpjBLtCJS2NUpf9KmEInXJMKBkF2PwmnQ56tAmg4fheUdN7_GqueKAre9RGz3c-CxDFsLso-LF9B9lhLgjBgPpIdCphPjVH7ixDWPFNimMTVMDWIYhoiQi2vFUTsoVDNmxDWPFgmSAS038TW52U; authorization=hmac%200000013950-1%3AZ3RTUEZaa05RaGU0dTF3WkpIWW5RcU84eFdudEdnTGM%3D~0; utoken_CLOUD=ACAg4vzVDjZUhn1S%3BVcwCyRrckxD5IhakuhB3rjW5Emepshx-4ChKn_ZgoaLfmhR_t5wLcrxcGJ8zFanE%231727148212231'
 // 获取发布单列表
 async function fetchReleaseList() {
     console.log('==========================开始获取发布单列表==========================');
@@ -53,7 +53,14 @@ async function fetchiterationById(id) {
         }
     };
     const response = await axios(config);
-    return response?.data?.result;
+    if ( response?.data?.success===true) {
+        return response?.data?.result || [];
+    }
+    if( response?.data?.success===false) {
+        return [];
+    }
+
+    return null;
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linke/webapi/iteration/getWorkItems?iterationExternalId=ECI10026689
@@ -90,7 +97,15 @@ async function fetchApprovalById(id) {
     };
     // console.log('====当前正在请求的迭代ID====', id);
     const response = await axios(config);
-    return response?.data?.result;
+    if ( response?.data?.success===true) {
+        return response?.data?.result || [];
+    }
+    if( response?.data?.success===false)
+     {
+        return [];
+    }
+
+    return null;
 }
 
 // http://linkeapi.thyun.thfund.com.cn/linkflow/webapi/process/log/ab90edfa-765e-11ef-a6a6-9228587ecc0d

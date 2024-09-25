@@ -159,9 +159,35 @@ function extractReleaseIdsFromLog(filePath) {
     });
 }
 
+function extractReleaseApps(releaseRepos) {
+    let result = [];
+    function traverse(releaseRepos) {
+        releaseRepos?.forEach(repo => {
+            repo?.releaseApps?.forEach(app => {
+                result?.push(app);
+            });
+        });
+    }
+    if (releaseRepos) {
+        traverse(releaseRepos);
+    }
+    return result;
+}
+
+// 去重函数，基于对象进行去重
+function removeDuplicatesByObject(arr) {
+    const seen = new Set();
+    return arr?.filter(item => {
+        const serialized = JSON.stringify(item);
+        return seen.has(serialized) ? false : seen.add(serialized);
+    });
+}
+
 module.exports = {
     saveListToFile,
     saveToExcel_demand,
     saveToExcel_approval,
-    extractReleaseIdsFromLog
+    extractReleaseIdsFromLog,
+    extractReleaseApps,
+    removeDuplicatesByObject
 }

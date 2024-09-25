@@ -17,6 +17,8 @@ const { extractReleaseIdsFromLog } = require('./util.js');
 const fialAppStream = fs.createWriteStream('retry_demand_fail_release_list.txt', { flags: 'a' }); // 'a' 表示追加写入
 // 记录查询的发布单详情为空的数据 写入流
 const emptyAppStream = fs.createWriteStream('retry_demand_empty_release_list.txt', { flags: 'a' }); // 'a' 表示追加写入
+// 记录查询的发布单迭代为空的数据 写入流
+const emptyAppIterationStream = fs.createWriteStream('retry_demand_empty_iteration_list.txt', { flags: 'a' });
 
 // 请求重试函数 
 async function fetchWithRetry(fn, id, retries = 5) {
@@ -42,14 +44,18 @@ async function fetchRetryIds() {
     console.log('==========================开始读取失败日志中的发布单列表==========================');
     const emptyPath = path.resolve(__dirname, 'logs/demand', 'demand_empty_release_list.txt');
     const failPath = path.resolve(__dirname, 'logs/demand', 'demand_fail_release_list.txt');
+    const emptyIterationPath = path.resolve(__dirname, 'logs/demand', 'demand_empty_iteration_list.txt');
+
     // 读取空发布单日志文件
-    const ids = await extractReleaseIdsFromLog(emptyPath);
+    const id1s = await extractReleaseIdsFromLog(emptyPath);
     // 读取失败发布单日志文件
-    const ids2 = await extractReleaseIdsFromLog(failPath);
+    const id2s = await extractReleaseIdsFromLog(failPath);
+       // 读取查询迭代列表失败的应用
+    const id3s = await extractReleaseIdsFromLog(emptyIterationPath);
     // 合并发布单列表
-    const ids3 = [...new Set([...ids, ...ids2])];
+    const ids = [...new Set([...id1s, ...id2s, ...id3s])];
     // 写入到文件中
-    const releaseList = ids3?.map(id => ({ externalId: id }));
+    const releaseList = ids?.map(id => ({ externalId: id }));
     console.log('releaseList:', JSON.stringify(releaseList));
     return releaseList;
 }
@@ -124,9 +130,15 @@ async function createIterationList(detailsList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(detailsList, 30, async (item) => {
         try {
-            const iterationList = await fetchWithRetry(fetchiterationById, item.id) || [];
-            // 没有迭代数据时， 迭代信息填充为空
-            if (!iterationList?.length) {
+            const iterationList = await fetchWithRetry(fetchiterationById, item.id);
+            if(!iterationList){
+                // 如果iterationList 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单迭代列表失败', '发布单id:', item?.id);
+                emptyAppIterationStream.write(`查询发布单迭代失败，发布单id：${item?.releaseId}\n`)
+            }
+            // 没有迭代数据时， 迭代信息填充为空（非网络问题，只是数组列表为空）
+            if (Array.isArray(iterationList) &&!iterationList?.length) {
                 const tempObj = {
                     ...item,
                     // 拼接迭代信息

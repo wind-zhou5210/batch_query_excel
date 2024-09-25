@@ -7,7 +7,7 @@ const dayjs = require('dayjs');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
-const { saveListToFile, saveToExcel_approval } = require('./util.js');
+const { saveListToFile, saveToExcel_approval, extractReleaseApps, removeDuplicatesByObject } = require('./util.js');
 const { retry } = require('./retry_approval.js');
 // 创建 logs/approval 目录（如果不存在）
 const approvalDir = path.resolve(__dirname, 'logs', 'approval');                  
@@ -21,6 +21,11 @@ const logStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_execu
 const fialAppStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_fail_release_list.txt'), { flags: 'a' });
 // 记录查询的发布单详情为空的数据 写入流
 const emptyAppStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_release_list.txt'), { flags: 'a' });
+// 记录查询的发布单迭代为空的数据 写入流
+const emptyAppIterationStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_iteration_list.txt'), { flags: 'a' });
+// 记录查询的发布单迭代审批列表为空的数据 写入流
+const emptyAppApprovalStream = fs.createWriteStream(path.resolve(approvalDir, 'approval_empty_approval_list.txt'), { flags: 'a' });
+
 
 // ANSI 转义码：黄色
 const yellow = '\x1b[33m';
@@ -122,7 +127,6 @@ async function createDetailList(releaselist) {
         }
 
     });
-
     return list;
 }
 
@@ -136,15 +140,21 @@ async function createIterationList(detailsList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(detailsList, 30, async (item) => {
         try {
-            const iterationList = await fetchWithRetry(fetchiterationById, item.id) || [];
-            // 没有迭代数据时， 迭代信息填充为空
-            if (!iterationList?.length) {
+            const iterationList = await fetchWithRetry(fetchiterationById, item.id);
+            if(!iterationList){
+                // 如果iterationList 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单迭代列表失败', '发布单id:', item?.id);
+                emptyAppIterationStream.write(`查询发布单迭代失败，发布单id：${item?.releaseId}\n`)
+            }
+            // 没有迭代数据时， 迭代信息填充为空（非网络问题，只是数组列表为空）
+            if (Array.isArray(iterationList) &&!iterationList?.length) {
                 const tempObj = {
                     ...item,
                     // 拼接迭代信息
                     // 迭代名称
                     iterationName: undefined,
-                    // 迭代id （todo... 最终需要过过滤）
+                    // 迭代id 
                     iterationId: undefined,
                     // 迭代 externalId 
                     iterationExtrnalId: undefined,
@@ -190,9 +200,15 @@ async function createApprovalList(iterationList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(iterationList, 30, async (item) => {
         try {
-            const approvalList = await fetchWithRetry(fetchApprovalById, item.iterationId) || [];
+            const approvalList = await fetchWithRetry(fetchApprovalById, item.iterationId);
+            if(!approvalList){
+                // approvalList 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单迭代-审批-列表失败', ",发布单id",item.releaseId,'迭代id:', item?.iterationId);
+                emptyAppApprovalStream.write(`查询发布单迭代-审批-列表失败，发布单id：${item?.releaseId}\n`)
+            }
             // 没有迭代数据时， 迭代信息填充为空
-            if (!approvalList?.length) {
+            if ( Array.isArray(approvalList) &&!approvalList?.length) {
                 const appInfoObj = {
                     // 代码仓库
                     codeRepo: undefined,
@@ -221,16 +237,16 @@ async function createApprovalList(iterationList) {
                     // 审批关联的 应用
                     const targetAppName = approval?.appNames?.[0];
                     // 筛选对应的应用
-                    const targetAppInfo = item?.appLists?.find(app => app?.releaseApps?.[0]?.appName === targetAppName);
+                    const targetAppInfo = item?.appLists?.find(app => app?.appName === targetAppName);
                     const appInfoObj = {
                         // 代码仓库
                         codeRepo: targetAppInfo?.repoName,
                         // 用于提交发布的应用
-                        appName: targetAppInfo?.releaseApps?.[0]?.appName,
+                        appName: targetAppInfo?.appName,
                         // 状态阶段
-                        stage: targetAppInfo?.releaseApps?.[0]?.appUnits?.[0]?.stageStep?.displayName,
+                        stage: targetAppInfo?.appUnits?.[0]?.stageStep?.displayName,
                         // 是否发布
-                        isRelease: targetAppInfo?.releaseApps?.[0]?.release
+                        isRelease: targetAppInfo?.release
                     }
                     const tempObj = {
                         ...item,
@@ -405,7 +421,7 @@ async function createDetailListWithAppInfo(detailsList) {
     await async.eachLimit(detailsList, 30, async (item) => {
         try {
             const appListsInfo = await fetchWithRetry(fetchRealseAppsByExternalId, item.releaseId) || {};
-            const appLists = appListsInfo?.releaseRepos
+            const appLists = extractReleaseApps(appListsInfo?.releaseRepos);
             const newData = {
                 ...item,
                 appLists
@@ -419,7 +435,6 @@ async function createDetailListWithAppInfo(detailsList) {
         } catch (error) {
             console.error(`请求 发布单id：${item.releaseId} 下的应用信息失败，重试后仍然失败。`);
         }
-
     });
     return list;
 }
@@ -466,9 +481,10 @@ async function main() {
     const retryList = await retry();
     console.log('需求列表重试结束=共有', retryList.length, '条');
     const resultList = [...reviewDetailList, ...retryList];
+    const results = removeDuplicatesByObject(resultList);
     //10.输出到 Excel 文件
-    if (resultList.length > 0) {
-        saveToExcel_approval(resultList, 'approval_output.xlsx'); // 保存为 details_output.xlsx
+    if (results.length > 0) {
+        saveToExcel_approval(results, 'approval_output.xlsx'); // 保存为 details_output.xlsx
     } else {
         console.log('No details found to save.');
     }

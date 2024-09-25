@@ -20,6 +20,8 @@ const logStream = fs.createWriteStream(path.resolve(demandDir, 'demand_execution
 const fialAppStream = fs.createWriteStream(path.resolve(demandDir, 'demand_fail_release_list.txt'), { flags: 'a' });
 // 记录查询的发布单详情为空的数据 写入流
 const emptyAppStream = fs.createWriteStream(path.resolve(demandDir, 'demand_empty_release_list.txt'), { flags: 'a' });
+// 记录查询的发布单迭代为空的数据 写入流
+const emptyAppIterationStream = fs.createWriteStream(path.resolve(demandDir, 'demand_empty_iteration_list.txt'), { flags: 'a' });
 
 // ANSI 转义码：黄色
 const yellow = '\x1b[33m';
@@ -135,9 +137,15 @@ async function createIterationList(detailsList) {
     // 使用 async.eachLimit 来限制并发数量
     await async.eachLimit(detailsList, 30, async (item) => {
         try {
-            const iterationList = await fetchWithRetry(fetchiterationById, item.id) || [];
-            // 没有迭代数据时， 迭代信息填充为空
-            if (!iterationList?.length) {
+            const iterationList = await fetchWithRetry(fetchiterationById, item.id);
+            if(!iterationList){
+                // 如果iterationList 为空 （可能是网络问题）
+                // 记录下当前查询为空的 应用信息
+                console.log('查询发布单迭代列表失败', '发布单id:', item?.id);
+                emptyAppIterationStream.write(`查询发布单迭代失败，发布单id：${item?.releaseId}\n`)
+            }
+            // 没有迭代数据时， 迭代信息填充为空（非网络问题，只是数组列表为空）
+            if (Array.isArray(iterationList) &&!iterationList?.length) {
                 const tempObj = {
                     ...item,
                     // 拼接迭代信息
